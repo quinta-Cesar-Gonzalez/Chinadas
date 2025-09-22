@@ -79,8 +79,8 @@ async def test_get_initial_gps_sets_offline_status_for_timeout(
     assert response_body[1]["licensePlateNumber"] == "PLATE-2"
     assert response_body[1]["spkm"] == 60
 
-    # Check that the alert was created with the correct message
+    # Check that the alert was created with the correct value
     mock_mongo.Alerts.update_one.assert_called_once()
     args, kwargs = mock_mongo.Alerts.update_one.call_args
     alert_doc = args[1]["$set"]
-    assert alert_doc["value"] == "No GPS in last 45 minutes"
+    assert alert_doc["value"] == 45
