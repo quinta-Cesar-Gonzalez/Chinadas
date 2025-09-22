@@ -1,6 +1,0 @@
-com\springboot\whw\springboot_kafka\kafka\producer\KafkaProducer.class
-com\springboot\whw\springboot_kafka\kafka\KafkaSendResultHandler.class
-com\springboot\whw\springboot_kafka\kafka\consumer\KafkaConsumer.class
-com\springboot\whw\springboot_kafka\kafka\producer\KafkaProducer$1.class
-com\springboot\whw\springboot_kafka\SpringbootKafkaApplication.class
-com\springboot\whw\springboot_kafka\kafka\MQTopic.class
