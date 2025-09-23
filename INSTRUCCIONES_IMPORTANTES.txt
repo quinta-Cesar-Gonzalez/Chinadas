@@ -1,0 +1,17 @@
+Hola,
+
+Parece que mis mensajes no te están llegando correctamente.
+
+La solución a tu problema es que estás ejecutando una versión antigua del código. Por favor, sigue estos dos pasos para solucionarlo:
+
+PASO 1: Compila el proyecto de nuevo para aplicar mis correcciones.
+Abre tu terminal y ejecuta este comando:
+mvn clean package
+
+PASO 2: Ejecuta el nuevo archivo JAR que se acaba de crear en el directorio 'target/'.
+Ejecuta este comando:
+java -jar target/springboot_kafka-1.0.0.jar
+
+Esto solucionará el error 'Code: 1006' de forma definitiva.
+
+- Jules
