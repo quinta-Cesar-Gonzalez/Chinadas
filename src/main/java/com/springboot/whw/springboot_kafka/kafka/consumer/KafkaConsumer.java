@@ -1,35 +1,55 @@
 package com.springboot.whw.springboot_kafka.kafka.consumer;
 
 import com.springboot.whw.springboot_kafka.kafka.MQTopic;
+import com.springboot.whw.springboot_kafka.websocket.WebSocketService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-/**
- * @author whw
- * @Description kafka消息消费者
- * @createTime 2022/11/19 12:36
- */
 @Slf4j
 @Component
 public class KafkaConsumer {
 
-    @KafkaListener(topics = {MQTopic.TOPIC_SENSOR})
-    public void onSensorMessage(ConsumerRecord<?, ?> record) {
-        log.info("Sensor Message: Topic={}, Partition={}, Content={}",
-                record.topic(), record.partition(), record.value());
+    @Autowired
+    private WebSocketService webSocketService;
+
+    @KafkaListener(topics = {MQTopic.TOPIC_SENSOR, MQTopic.TOPIC_GPS, MQTopic.TOPIC_LOAD})
+    public void onMessage(ConsumerRecord<?, ?> record) {
+        String topic = mapTopic(record.topic());
+        if (topic == null) {
+            log.warn("No topic mapping found for Kafka topic: {}", record.topic());
+            return;
+        }
+
+        String payload = record.value().toString();
+
+        try {
+            JSONObject jsonPayload = new JSONObject(payload);
+            JSONObject finalJson = new JSONObject();
+            finalJson.put("topic", topic);
+            finalJson.put("payload", jsonPayload);
+
+            String messageToSend = finalJson.toString();
+            log.info("Sending message to WebSocket: {}", messageToSend);
+            webSocketService.sendMessage(messageToSend);
+        } catch (Exception e) {
+            log.error("Error creating or sending JSON message for topic {}", record.topic(), e);
+        }
     }
 
-    @KafkaListener(topics = {MQTopic.TOPIC_GPS})
-    public void onGpsMessage(ConsumerRecord<?, ?> record) {
-        log.info("GPS Message: Topic={}, Partition={}, Content={}",
-                record.topic(), record.partition(), record.value());
-    }
-
-    @KafkaListener(topics = {MQTopic.TOPIC_LOAD})
-    public void onLoadMessage(ConsumerRecord<?, ?> record) {
-        log.info("Load Message: Topic={}, Partition={}, Content={}",
-                record.topic(), record.partition(), record.value());
+    private String mapTopic(String kafkaTopic) {
+        switch (kafkaTopic) {
+            case MQTopic.TOPIC_GPS:
+                return "gps";
+            case MQTopic.TOPIC_SENSOR:
+                return "sensor";
+            case MQTopic.TOPIC_LOAD:
+                return "load";
+            default:
+                return null;
+        }
     }
 }
