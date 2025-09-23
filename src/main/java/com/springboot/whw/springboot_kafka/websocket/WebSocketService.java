@@ -34,6 +34,9 @@ public class WebSocketService {
                     scheduleReconnect();
                 }
             };
+            // This enables a built-in keepalive mechanism, sending a ping if the
+            // connection is idle for more than 10 seconds, preventing timeouts.
+            client.setConnectionLostTimeout(10);
             client.connect();
         } catch (URISyntaxException e) {
             log.error("Invalid WebSocket URI", e);

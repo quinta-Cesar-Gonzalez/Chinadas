@@ -18,6 +18,7 @@ public class KafkaConsumer {
 
     @KafkaListener(topics = {MQTopic.TOPIC_SENSOR, MQTopic.TOPIC_GPS, MQTopic.TOPIC_LOAD})
     public void onMessage(ConsumerRecord<?, ?> record) {
+        log.info("===> KAFKA MESSAGE RECEIVED | Topic: {} | Payload: {}", record.topic(), record.value());
         String topic = mapTopic(record.topic());
         if (topic == null) {
             log.warn("No topic mapping found for Kafka topic: {}", record.topic());
