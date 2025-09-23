@@ -15,11 +15,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class KafkaConsumer {
 
-    // @KafkaListener(topics = {MQTopic.TOPIC_SENSOR})
-    // public void onSensorMessage(ConsumerRecord<?, ?> record) {
-    //     log.info("Sensor Message: Topic={}, Partition={}, Content={}",
-    //             record.topic(), record.partition(), record.value());
-    // }
+    @KafkaListener(topics = {MQTopic.TOPIC_SENSOR})
+    public void onSensorMessage(ConsumerRecord<?, ?> record) {
+        log.info("Sensor Message: Topic={}, Partition={}, Content={}",
+                record.topic(), record.partition(), record.value());
+    }
 
     @KafkaListener(topics = {MQTopic.TOPIC_GPS})
     public void onGpsMessage(ConsumerRecord<?, ?> record) {
@@ -27,9 +27,9 @@ public class KafkaConsumer {
                 record.topic(), record.partition(), record.value());
     }
 
-    // @KafkaListener(topics = {MQTopic.TOPIC_LOAD})
-    // public void onLoadMessage(ConsumerRecord<?, ?> record) {
-    //     log.info("Load Message: Topic={}, Partition={}, Content={}",
-    //             record.topic(), record.partition(), record.value());
-    // }
+    @KafkaListener(topics = {MQTopic.TOPIC_LOAD})
+    public void onLoadMessage(ConsumerRecord<?, ?> record) {
+        log.info("Load Message: Topic={}, Partition={}, Content={}",
+                record.topic(), record.partition(), record.value());
+    }
 }
