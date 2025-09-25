@@ -1,8 +1,11 @@
 package com.springboot.whw.springboot_kafka.kafka.consumer;
 
 import com.springboot.whw.springboot_kafka.kafka.MQTopic;
+import com.springboot.whw.springboot_kafka.websocket.WebSocketClientService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -15,21 +18,45 @@ import org.springframework.stereotype.Component;
 @Component
 public class KafkaConsumer {
 
-    @KafkaListener(topics = {MQTopic.TOPIC_SENSOR})
-    public void onSensorMessage(ConsumerRecord<?, ?> record) {
-        log.info("Sensor Message: Topic={}, Partition={}, Content={}",
-                record.topic(), record.partition(), record.value());
+    @Autowired
+    private WebSocketClientService webSocketClientService;
+
+    @KafkaListener(topics = {MQTopic.TOPIC_SENSOR, MQTopic.TOPIC_GPS, MQTopic.TOPIC_LOAD})
+    public void onMessage(ConsumerRecord<?, ?> record) {
+        processAndSendMessage(record);
     }
 
-    @KafkaListener(topics = {MQTopic.TOPIC_GPS})
-    public void onGpsMessage(ConsumerRecord<?, ?> record) {
-        log.info("GPS Message: Topic={}, Partition={}, Content={}",
-                record.topic(), record.partition(), record.value());
+    private void processAndSendMessage(ConsumerRecord<?, ?> record) {
+        String topic = record.topic();
+        String payload = record.value().toString();
+
+        String webSocketTopic = mapKafkaTopicToWebSocketTopic(topic);
+        if (webSocketTopic == null) {
+            log.warn("No WebSocket topic mapping found for Kafka topic: {}", topic);
+            return;
+        }
+
+        try {
+            JSONObject jsonPayload = new JSONObject();
+            jsonPayload.put("topic", webSocketTopic);
+            jsonPayload.put("payload", new JSONObject(payload));
+
+            String messageToSend = jsonPayload.toString();
+            log.info("Sending message to WebSocket: {}", messageToSend);
+            webSocketClientService.sendMessage(messageToSend);
+        } catch (Exception e) {
+            log.error("Error creating or sending WebSocket message", e);
+        }
     }
 
-    @KafkaListener(topics = {MQTopic.TOPIC_LOAD})
-    public void onLoadMessage(ConsumerRecord<?, ?> record) {
-        log.info("Load Message: Topic={}, Partition={}, Content={}",
-                record.topic(), record.partition(), record.value());
+    private String mapKafkaTopicToWebSocketTopic(String kafkaTopic) {
+        if (kafkaTopic.startsWith("topic-gps")) {
+            return "gps";
+        } else if (kafkaTopic.startsWith("topic-sensor")) {
+            return "sensor";
+        } else if (kafkaTopic.startsWith("topic-load")) {
+            return "load";
+        }
+        return null;
     }
 }
