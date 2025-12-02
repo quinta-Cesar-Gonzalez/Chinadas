@@ -15,7 +15,7 @@ import java.util.TimerTask;
 @Service
 public class WebSocketClientService {
 
-    private static final String WEBSOCKET_URI = "wss://dev-iot.quinta.tech/ws/java";
+    private static final String WEBSOCKET_URI = "wss://iot.quinta.tech/ws/java";
     private WebSocketClient client;
     private Timer reconnectTimer;
     private boolean isClosing = false;
