@@ -1,8 +1,9 @@
 package com.springboot.whw.springboot_kafka.websocket;
 
-import lombok.extern.slf4j.Slf4j;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -11,11 +12,12 @@ import java.net.URISyntaxException;
 import java.util.Timer;
 import java.util.TimerTask;
 
-@Slf4j
 @Service
 public class WebSocketClientService {
 
+    private static final Logger logger = LoggerFactory.getLogger(WebSocketClientService.class);
     private static final String WEBSOCKET_URI = "wss://iot.quinta.tech/ws/java";
+
     private WebSocketClient client;
     private Timer reconnectTimer;
     private boolean isClosing = false;
@@ -27,18 +29,18 @@ public class WebSocketClientService {
             client = new WebSocketClient(uri) {
                 @Override
                 public void onOpen(ServerHandshake handshakedata) {
-                    log.info("WebSocket connection opened to {}", WEBSOCKET_URI);
+                    logger.info("WebSocket connection opened to {}", WEBSOCKET_URI);
                     cancelReconnectTimer();
                 }
 
                 @Override
                 public void onMessage(String message) {
-                    log.info("Received message from WebSocket: {}", message);
+                    logger.info("Received message from WebSocket: {}", message);
                 }
 
                 @Override
                 public void onClose(int code, String reason, boolean remote) {
-                    log.warn("WebSocket connection closed. Code: {}, Reason: {}, Remote: {}", code, reason, remote);
+                    logger.warn("WebSocket connection closed. Code: {}, Reason: {}, Remote: {}", code, reason, remote);
                     if (!isClosing) {
                         scheduleReconnect();
                     }
@@ -46,13 +48,14 @@ public class WebSocketClientService {
 
                 @Override
                 public void onError(Exception ex) {
-                    log.error("WebSocket error", ex);
+                    logger.error("WebSocket error", ex);
                 }
             };
-            log.info("Attempting to connect to WebSocket: {}", WEBSOCKET_URI);
+
+            logger.info("Attempting to connect to WebSocket: {}", WEBSOCKET_URI);
             client.connect();
         } catch (URISyntaxException e) {
-            log.error("Invalid WebSocket URI", e);
+            logger.error("Invalid WebSocket URI", e);
         }
     }
 
@@ -60,7 +63,7 @@ public class WebSocketClientService {
         if (client != null && client.isOpen()) {
             client.send(message);
         } else {
-            log.warn("WebSocket is not connected. Message not sent: {}", message);
+            logger.warn("WebSocket is not connected. Message not sent: {}", message);
         }
     }
 
@@ -71,7 +74,7 @@ public class WebSocketClientService {
         reconnectTimer.schedule(new TimerTask() {
             @Override
             public void run() {
-                log.info("Attempting to reconnect WebSocket...");
+                logger.info("Attempting to reconnect WebSocket...");
                 reconnect();
             }
         }, 5000); // Reconnect after 5 seconds
@@ -87,10 +90,10 @@ public class WebSocketClientService {
     private void reconnect() {
         if (client != null && !client.isOpen()) {
             try {
-                log.info("Reconnecting to WebSocket: {}", WEBSOCKET_URI);
+                logger.info("Reconnecting to WebSocket: {}", WEBSOCKET_URI);
                 client.reconnectBlocking();
             } catch (InterruptedException e) {
-                log.error("WebSocket reconnection was interrupted", e);
+                logger.error("WebSocket reconnection was interrupted", e);
                 Thread.currentThread().interrupt();
             }
         }
