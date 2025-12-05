@@ -2,9 +2,10 @@ package com.springboot.whw.springboot_kafka.kafka.consumer;
 
 import com.springboot.whw.springboot_kafka.kafka.MQTopic;
 import com.springboot.whw.springboot_kafka.websocket.WebSocketClientService;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -14,9 +15,10 @@ import org.springframework.stereotype.Component;
  * @Description kafka消息消费者
  * @createTime 2022/11/19 12:36
  */
-@Slf4j
 @Component
 public class KafkaConsumer {
+
+    private static final Logger logger = LoggerFactory.getLogger(KafkaConsumer.class);
 
     @Autowired
     private WebSocketClientService webSocketClientService;
@@ -32,7 +34,7 @@ public class KafkaConsumer {
 
         String webSocketTopic = mapKafkaTopicToWebSocketTopic(topic);
         if (webSocketTopic == null) {
-            log.warn("No WebSocket topic mapping found for Kafka topic: {}", topic);
+            logger.warn("No WebSocket topic mapping found for Kafka topic: {}", topic);
             return;
         }
 
@@ -42,10 +44,10 @@ public class KafkaConsumer {
             jsonPayload.put("payload", new JSONObject(payload));
 
             String messageToSend = jsonPayload.toString();
-            log.info("Sending message to WebSocket: {}", messageToSend);
+            logger.info("Sending message to WebSocket: {}", messageToSend);
             webSocketClientService.sendMessage(messageToSend);
         } catch (Exception e) {
-            log.error("Error creating or sending WebSocket message", e);
+            logger.error("Error creating or sending WebSocket message", e);
         }
     }
 
