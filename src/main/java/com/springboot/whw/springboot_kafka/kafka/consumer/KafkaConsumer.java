@@ -8,12 +8,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 /**
- * @author whw
- * @Description kafka消息消费者
- * @createTime 2022/11/19 12:36
+ * Kafka consumer que reenvía mensajes al WebSocket.
+ * Usa manual acknowledgment: el offset SOLO se confirma si el mensaje
+ * fue enviado exitosamente, evitando pérdida de datos.
  */
 @Component
 public class KafkaConsumer {
@@ -24,18 +25,27 @@ public class KafkaConsumer {
     private WebSocketClientService webSocketClientService;
 
     @KafkaListener(topics = {MQTopic.TOPIC_SENSOR, MQTopic.TOPIC_GPS, MQTopic.TOPIC_LOAD})
-    public void onMessage(ConsumerRecord<?, ?> record) {
-        processAndSendMessage(record);
+    public void onMessage(ConsumerRecord<?, ?> record, Acknowledgment ack) {
+        boolean success = processAndSendMessage(record);
+        if (success) {
+            // Confirmamos el offset SOLO si el mensaje fue entregado o encolado en buffer
+            ack.acknowledge();
+        } else {
+            // Si el buffer está lleno y el mensaje fue descartado, Kafka reintentará
+            logger.error("Mensaje no pudo ser procesado, offset NO confirmado. Kafka reintentará. topic={}, offset={}",
+                    record.topic(), record.offset());
+        }
     }
 
-    private void processAndSendMessage(ConsumerRecord<?, ?> record) {
+    private boolean processAndSendMessage(ConsumerRecord<?, ?> record) {
         String topic = record.topic();
         String payload = record.value().toString();
 
         String webSocketTopic = mapKafkaTopicToWebSocketTopic(topic);
         if (webSocketTopic == null) {
             logger.warn("No WebSocket topic mapping found for Kafka topic: {}", topic);
-            return;
+            // No hay mapping, no tiene sentido reintentar: confirmar y descartar
+            return true;
         }
 
         try {
@@ -45,9 +55,10 @@ public class KafkaConsumer {
 
             String messageToSend = jsonPayload.toString();
             logger.info("Sending message to WebSocket: {}", messageToSend);
-            webSocketClientService.sendMessage(messageToSend);
+            return webSocketClientService.sendMessage(messageToSend);
         } catch (Exception e) {
-            logger.error("Error creating or sending WebSocket message", e);
+            logger.error("Error creating WebSocket message for topic={}", topic, e);
+            return false;
         }
     }
 

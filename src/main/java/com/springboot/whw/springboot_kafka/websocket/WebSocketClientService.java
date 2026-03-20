@@ -9,28 +9,41 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class WebSocketClientService {
 
     private static final Logger logger = LoggerFactory.getLogger(WebSocketClientService.class);
     private static final String WEBSOCKET_URI = "wss://iot.quinta.tech/ws/java";
+    private static final int RECONNECT_DELAY_SECONDS = 5;
+    private static final int BUFFER_CAPACITY = 1000;
 
     private WebSocketClient client;
-    private Timer reconnectTimer;
-    private boolean isClosing = false;
+    private final ScheduledExecutorService reconnectExecutor = Executors.newSingleThreadScheduledExecutor(
+            r -> new Thread(r, "ws-reconnect-thread")
+    );
+    private volatile boolean isClosing = false;
+
+    /** Cola de mensajes pendientes cuando el WebSocket está caído */
+    private final LinkedBlockingQueue<String> messageQueue = new LinkedBlockingQueue<>(BUFFER_CAPACITY);
 
     @PostConstruct
     public void connect() {
+        createAndConnect();
+    }
+
+    private void createAndConnect() {
         try {
             URI uri = new URI(WEBSOCKET_URI);
             client = new WebSocketClient(uri) {
                 @Override
                 public void onOpen(ServerHandshake handshakedata) {
                     logger.info("WebSocket connection opened to {}", WEBSOCKET_URI);
-                    cancelReconnectTimer();
+                    drainQueue();
                 }
 
                 @Override
@@ -59,49 +72,57 @@ public class WebSocketClientService {
         }
     }
 
-    public void sendMessage(String message) {
+    /**
+     * Envía un mensaje al WebSocket.
+     * @return true si se envió directamente; false si fue encolado o descartado.
+     */
+    public boolean sendMessage(String message) {
         if (client != null && client.isOpen()) {
             client.send(message);
+            return true;
         } else {
-            logger.warn("WebSocket is not connected. Message not sent: {}", message);
+            boolean queued = messageQueue.offer(message);
+            if (!queued) {
+                logger.error("Buffer lleno ({}), mensaje descartado: {}", BUFFER_CAPACITY, message);
+            } else {
+                logger.warn("WebSocket caído. Mensaje encolado ({} en cola)", messageQueue.size());
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Drena la cola de mensajes pendientes una vez que el WebSocket reconecta.
+     */
+    private void drainQueue() {
+        int count = 0;
+        String msg;
+        while ((msg = messageQueue.poll()) != null) {
+            client.send(msg);
+            count++;
+        }
+        if (count > 0) {
+            logger.info("Cola drenada: {} mensajes reenviados al WebSocket", count);
         }
     }
 
     private void scheduleReconnect() {
-        if (reconnectTimer == null) {
-            reconnectTimer = new Timer("WebSocket Reconnect Timer");
-        }
-        reconnectTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                logger.info("Attempting to reconnect WebSocket...");
-                reconnect();
+        reconnectExecutor.schedule(() -> {
+            if (client != null && !client.isOpen()) {
+                logger.info("Intentando reconectar al WebSocket: {}", WEBSOCKET_URI);
+                try {
+                    client.reconnectBlocking();
+                } catch (InterruptedException e) {
+                    logger.error("Reconexión WebSocket interrumpida", e);
+                    Thread.currentThread().interrupt();
+                }
             }
-        }, 5000); // Reconnect after 5 seconds
-    }
-
-    private void cancelReconnectTimer() {
-        if (reconnectTimer != null) {
-            reconnectTimer.cancel();
-            reconnectTimer = null;
-        }
-    }
-
-    private void reconnect() {
-        if (client != null && !client.isOpen()) {
-            try {
-                logger.info("Reconnecting to WebSocket: {}", WEBSOCKET_URI);
-                client.reconnectBlocking();
-            } catch (InterruptedException e) {
-                logger.error("WebSocket reconnection was interrupted", e);
-                Thread.currentThread().interrupt();
-            }
-        }
+        }, RECONNECT_DELAY_SECONDS, TimeUnit.SECONDS);
     }
 
     public void close() {
         isClosing = true;
-        cancelReconnectTimer();
+        reconnectExecutor.shutdownNow();
         if (client != null) {
             client.close();
         }
