@@ -23,7 +23,10 @@ public class KafkaConsumer {
     @Autowired
     private WebSocketClientService webSocketClientService;
 
-    @KafkaListener(topics = {MQTopic.TOPIC_SENSOR, MQTopic.TOPIC_GPS, MQTopic.TOPIC_LOAD})
+    @KafkaListener(
+            topics = {MQTopic.TOPIC_SENSOR, MQTopic.TOPIC_GPS, MQTopic.TOPIC_LOAD},
+            concurrency = "3"   // 1 hilo por topic — ajustar si hay más particiones
+    )
     public void onMessage(ConsumerRecord<?, ?> record) {
         processAndSendMessage(record);
     }
