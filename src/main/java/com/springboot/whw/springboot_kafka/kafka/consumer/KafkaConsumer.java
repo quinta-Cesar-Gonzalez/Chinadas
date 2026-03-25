@@ -44,7 +44,7 @@ public class KafkaConsumer {
             jsonPayload.put("payload", new JSONObject(payload));
 
             String messageToSend = jsonPayload.toString();
-            logger.info("Sending message to WebSocket: {}", messageToSend);
+            logger.debug("Sending message to WebSocket: {}", messageToSend);
             webSocketClientService.sendMessage(messageToSend);
         } catch (Exception e) {
             logger.error("Error creating or sending WebSocket message", e);

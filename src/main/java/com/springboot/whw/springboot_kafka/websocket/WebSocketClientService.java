@@ -143,6 +143,8 @@ public class WebSocketClientService {
             };
 
             logger.info("Conectando al WebSocket: {}", WEBSOCKET_URI);
+            // Envía un ping cada 30s para evitar "keepalive ping timeout" del servidor
+            client.setConnectionLostTimeout(30);
             client.connect();
 
         } catch (URISyntaxException e) {
