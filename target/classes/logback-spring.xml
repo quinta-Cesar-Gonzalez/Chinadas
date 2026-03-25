@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- ===== Console (log general) ===== -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ===== Archivo general de la aplicación ===== -->
+    <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/application.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/application.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>14</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ===== Archivo dedicado: mensajes perdidos / colgados por WebSocket ===== -->
+    <appender name="LOST_MESSAGES_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/lost-messages.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- Rotación diaria, conserva últimos 30 días -->
+            <fileNamePattern>logs/lost-messages.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <!-- Formato compacto: timestamp | tipo de evento | contenido -->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} | %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ===== Archivo de incidencias: desconexiones, errores, cola llena ===== -->
+    <!--
+        Propósito : reporte estructurado de incidentes del WebSocket.
+        Formato   : TIMESTAMP | NIVEL | TIPO_EVENTO | detalle
+        Rotación  : diaria, conserva 90 días
+        No propaga al log general (additivity=false).
+    -->
+    <appender name="INCIDENTS_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/incidents.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/incidents.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>90</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} | %-5level | %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Logger para mensajes colgados (solo escribe en lost-messages.log) -->
+    <logger name="LOST_WS_MESSAGES" level="INFO" additivity="false">
+        <appender-ref ref="LOST_MESSAGES_FILE"/>
+    </logger>
+
+    <!-- Logger de incidencias (solo escribe en incidents.log) -->
+    <logger name="WS_INCIDENTS" level="INFO" additivity="false">
+        <appender-ref ref="INCIDENTS_FILE"/>
+    </logger>
+
+    <!-- ===== Root logger (nivel general de la app) ===== -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="APP_FILE"/>
+    </root>
+
+</configuration>
