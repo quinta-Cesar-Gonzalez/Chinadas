@@ -76,6 +76,9 @@ public class WebSocketClientService {
     /** Momento exacto en que se detectó la desconexión (para calcular tiempo caído). */
     private volatile Instant disconnectedAt = null;
 
+    /** Contador de mensajes encolados desde la última desconexión (para evitar log spam). */
+    private final AtomicInteger queuedSinceDisconnect = new AtomicInteger(0);
+
     /** Cola thread-safe de mensajes pendientes de envío */
     private final ConcurrentLinkedQueue<String> pendingMessages = new ConcurrentLinkedQueue<>();
 
@@ -158,8 +161,15 @@ public class WebSocketClientService {
                     client.send(message);
                     return; // enviado ok, salimos
                 } catch (Exception e) {
-                    logger.error("Fallo al enviar mensaje, encolando: {}", e.getMessage());
-                    incidentLogger.warn("SEND_FAIL | encolado | error={}", e.getMessage());
+                    String errMsg = e.getMessage();
+                    // La librería lanza "WebSocket is not connected" cuando cae justo al enviar:
+                    // es un caso normal de reconexión, no un error real — solo encolamos en silencio.
+                    if (errMsg != null && errMsg.contains("not connected")) {
+                        logger.debug("WebSocket cayó al enviar, encolando (normal durante reconexión)");
+                    } else {
+                        logger.error("Error inesperado al enviar mensaje: {}", errMsg, e);
+                        incidentLogger.warn("SEND_FAIL | error={}", errMsg);
+                    }
                 }
             }
         }
@@ -177,13 +187,25 @@ public class WebSocketClientService {
             incidentLogger.error("QUEUE_OVERFLOW | limite={} | mensaje descartado (el más antiguo)", MAX_PENDING_QUEUE_SIZE);
         }
         pendingMessages.offer(message);
-        lostLogger.info("QUEUED | {} | pending={} | {}", Instant.now(), pendingMessages.size(), message);
+        int count = queuedSinceDisconnect.incrementAndGet();
+
+        // Cada mensaje queda registrado en lost-messages.log (NO en consola ni application.log)
+        lostLogger.info("QUEUED | {} | pending={} | {}", Instant.now(), count, message);
+
+        // Solo la primera vez y cada 100 se avisa en incidents.log (sin spam)
+        if (count == 1) {
+            incidentLogger.warn("QUEUE_ACTIVE | WebSocket caído, encolando mensajes | pending={}", pendingMessages.size());
+        } else if (count % 100 == 0) {
+            incidentLogger.warn("QUEUED_SUMMARY | {} mensajes encolados desde desconexión | pending={}",
+                    count, pendingMessages.size());
+        }
     }
 
     // ── Reenvío de mensajes al reconectar ─────────────────────────────────────
 
     private void flushPendingMessages() {
         int total = pendingMessages.size();
+        queuedSinceDisconnect.set(0); // reset para el próximo ciclo de desconexión
         if (total == 0) {
             lostLogger.info("RECONNECTED | {} | Sin mensajes pendientes", Instant.now());
             return;
