@@ -91,6 +91,12 @@ public class WebSocketClientService {
 
     private synchronized void createAndConnect() {
         if (isClosing.get()) return;
+
+        // Cerrar cliente zombie anterior antes de crear uno nuevo
+        if (client != null && !client.isClosed()) {
+            try { client.closeBlocking(); } catch (Exception ignored) {}
+        }
+
         try {
             URI uri = new URI(WEBSOCKET_URI);
             client = new WebSocketClient(uri) {
@@ -136,9 +142,10 @@ public class WebSocketClientService {
 
                 @Override
                 public void onError(Exception ex) {
-                    logger.error("Error en WebSocket: {}", ex.getMessage(), ex);
-                    incidentLogger.error("ERROR | {} | pendingQueue={}", ex.getMessage(), pendingMessages.size());
-                    lostLogger.warn("ERROR | {} | {}", Instant.now(), ex.getMessage());
+                    String msg = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
+                    logger.error("Error en WebSocket: {}", msg, ex);
+                    incidentLogger.error("ERROR | {} | pendingQueue={}", msg, pendingMessages.size());
+                    lostLogger.warn("ERROR | {} | {}", Instant.now(), msg);
                 }
             };
 
@@ -163,10 +170,9 @@ public class WebSocketClientService {
                     client.send(message);
                     return; // enviado ok, salimos
                 } catch (Exception e) {
-                    String errMsg = e.getMessage();
-                    // La librería lanza "WebSocket is not connected" cuando cae justo al enviar:
-                    // es un caso normal de reconexión, no un error real — solo encolamos en silencio.
-                    if (errMsg != null && errMsg.contains("not connected")) {
+                    String errMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                    // La librería lanza "WebSocket is not connected" cuando cae justo al enviar
+                    if (errMsg.contains("not connected") || errMsg.contains("NotYetConnected")) {
                         logger.debug("WebSocket cayó al enviar, encolando (normal durante reconexión)");
                     } else {
                         logger.error("Error inesperado al enviar mensaje: {}", errMsg, e);
@@ -176,10 +182,8 @@ public class WebSocketClientService {
             }
         }
         // Si llega aquí es porque no estaba conectado o falló el send
+        // NO llamamos scheduleReconnect() aquí — onClose() ya lo hará cuando el server cierre la conexión
         enqueue(message);
-        if (!isReconnecting.get() && !isClosing.get()) {
-            scheduleReconnect();
-        }
     }
 
     private void enqueue(String message) {
@@ -228,7 +232,8 @@ public class WebSocketClientService {
                 // Detener el flush, re-encolar y esperar siguiente reconexión
                 pendingMessages.offer(msg);
                 failed++;
-                logger.error("Fallo durante flush (deteniendo): {}", e.getMessage());
+                String errMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                logger.error("Fallo durante flush (deteniendo): {}", errMsg);
                 break;
             }
         }
