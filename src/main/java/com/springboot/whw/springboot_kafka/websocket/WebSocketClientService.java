@@ -150,8 +150,9 @@ public class WebSocketClientService {
             };
 
             logger.info("Conectando al WebSocket: {}", WEBSOCKET_URI);
-            // Envía un ping cada 30s para evitar "keepalive ping timeout" del servidor
-            client.setConnectionLostTimeout(30);
+            // Desactivar pings del cliente: enviamos datos continuamente (10-20 msg/s)
+            // y nginx ya tiene proxy_read_timeout 3600s, así que no necesitamos heartbeat
+            client.setConnectionLostTimeout(0);
             client.connect();
 
         } catch (URISyntaxException e) {
